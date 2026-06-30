@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NOC // Auto Ticketing Engine — Kerala Vision Broadband</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root{
+    --bg:#080c10;
+    --panel:#0e151b;
+    --panel-2:#121a22;
+    --line:#1d2933;
+    --line-soft:#16202a;
+    --text:#e7eef3;
+    --muted:#7e93a3;
+    --dim:#4d6171;
+    --amber:#ffb454;
+    --red:#ff5d62;
+    --green:#3ddc97;
+    --cyan:#4fd1ff;
+    --violet:#9d8cff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(79,209,255,0.05), transparent 40%),
+      radial-gradient(circle at 100% 10%, rgba(157,140,255,0.05), transparent 45%);
+  }
+  ::selection{background:rgba(79,209,255,.3);}
+
+  /* ===== Topbar ===== */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0b1218,#080c10);
+    position:sticky;top:0;z-index:30;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .mark{
+    width:34px;height:34px;border-radius:8px;
+    background:linear-gradient(135deg,var(--cyan),var(--violet));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:800;color:#03070a;font-size:14px;
+  }
+  .brand .title{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;}
+  .brand .title b{color:var(--text);font-weight:700;}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--dim);display:flex;gap:18px;}
+  .clock span b{color:var(--cyan);}
+
+  .stat-strip{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:1px;
+    background:var(--line);border-bottom:1px solid var(--line);
+  }
+  .stat{background:var(--panel);padding:14px 20px;}
+  .stat .num{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1;}
+  .stat .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px;}
+  .stat.open .num{color:var(--amber);}
+  .stat.crit .num{color:var(--red);}
+  .stat.resolved .num{color:var(--green);}
+  .stat.dup .num{color:var(--violet);}
+
+  /* ===== Layout ===== */
+  .layout{display:grid;grid-template-columns:340px 1fr 360px;gap:0;min-height:calc(100vh - 130px);}
+  .col{border-right:1px solid var(--line);padding:18px;overflow:auto;}
+  .col:last-child{border-right:none;}
+  h2.sec{
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);margin:0 0 14px;display:flex;align-items:center;gap:8px;
+  }
+  h2.sec::after{content:'';flex:1;height:1px;background:var(--line);}
+
+  /* ===== Source panel ===== */
+  .device-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;margin-bottom:10px;
+  }
+  .device-card .row{display:flex;justify-content:space-between;align-items:center;}
+  .device-card .name{font-family:var(--mono);font-weight:600;font-size:13px;}
+  .device-card .ip{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px;}
+  .pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(61,220,151,.6);animation:pulse 2.2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.5);}70%{box-shadow:0 0 0 8px rgba(61,220,151,0);}100%{box-shadow:0 0 0 0 rgba(61,220,151,0);}}
+
+  .alarm-btns{display:grid;gap:8px;margin-top:6px;}
+  .alarm-btn{
+    text-align:left;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);padding:10px 12px;border-radius:8px;cursor:pointer;
+    font-family:var(--sans);font-size:12.5px;transition:.15s;display:flex;justify-content:space-between;align-items:center;
+  }
+  .alarm-btn:hover{border-color:var(--cyan);background:#102028;transform:translateY(-1px);}
+  .alarm-btn .sev{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;}
+  .sev-High{background:rgba(255,93,98,.15);color:var(--red);}
+  .sev-Medium{background:rgba(255,180,84,.15);color:var(--amber);}
+  .sev-Critical{background:rgba(255,93,98,.25);color:var(--red);}
+
+  .auto-toggle{
+    margin-top:16px;display:flex;align-items:center;justify-content:space-between;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  }
+  .switch{width:38px;height:20px;border-radius:20px;background:var(--line);position:relative;cursor:pointer;transition:.2s;}
+  .switch.on{background:var(--green);}
+  .switch .knob{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:.2s;}
+  .switch.on .knob{left:20px;}
+
+  .log{
+    margin-top:18px;background:#05080b;border:1px solid var(--line);border-radius:8px;
+    padding:10px;font-family:var(--mono);font-size:11px;color:var(--dim);height:200px;overflow:auto;
+  }
+  .log .l{padding:2px 0;border-bottom:1px dashed var(--line-soft);}
+  .log .l b{color:var(--cyan);}
+
+  /* ===== Pipeline (middle) ===== */
+  .pipeline{display:flex;flex-direction:column;gap:10px;margin-bottom:22px;}
+  .stage{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;display:flex;align-items:center;gap:14px;position:relative;opacity:.45;transition:.35s;
+  }
+  .stage.active{opacity:1;border-color:var(--cyan);box-shadow:0 0 0 1px rgba(79,209,255,.25), 0 8px 24px rgba(79,209,255,.06);}
+  .stage.done{opacity:1;border-color:var(--line);}
+  .stage .idx{
+    font-family:var(--mono);font-weight:800;font-size:13px;width:28px;height:28px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;background:var(--panel-2);color:var(--dim);flex:none;
+  }
+  .stage.active .idx{background:var(--cyan);color:#03070a;}
+  .stage.done .idx{background:var(--green);color:#03070a;}
+  .stage .meta{flex:1;}
+  .stage .meta .t{font-weight:700;font-size:13.5px;}
+  .stage .meta .d{font-size:11.5px;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+  .stage .branch{font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;}
+  .connector{width:2px;height:10px;background:var(--line);margin-left:33px;}
+
+  .ticket-feed{display:grid;gap:10px;}
+  .ticket{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    cursor:pointer;transition:.15s;
+  }
+  .ticket:hover{border-color:var(--cyan);}
+  .ticket.selected{border-color:var(--cyan);background:#0e1a22;}
+  .ticket .top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .ticket .id{font-family:var(--mono);font-size:11px;color:var(--dim);}
+  .badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;}
+  .b-Open{background:rgba(255,180,84,.15);color:var(--amber);}
+  .b-Assigned{background:rgba(79,209,255,.15);color:var(--cyan);}
+  .b-InProgress{background:rgba(157,140,255,.15);color:var(--violet);}
+  .b-Resolved{background:rgba(61,220,151,.15);color:var(--green);}
+  .ticket .name{font-weight:700;font-size:14px;margin-top:6px;}
+  .ticket .sub{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:3px;}
+  .ticket .foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+  .count-chip{font-family:var(--mono);font-size:10.5px;background:var(--panel-2);border:1px solid var(--line);padding:2px 8px;border-radius:6px;color:var(--muted);}
+  .empty{color:var(--dim);font-family:var(--mono);font-size:12.5px;padding:30px 10px;text-align:center;border:1px dashed var(--line);border-radius:10px;}
+
+  /* ===== Detail panel ===== */
+  .detail-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;}
+  .detail-card h3{margin:0 0 4px;font-size:18px;}
+  .detail-card .id{font-family:var(--mono);color:var(--dim);font-size:12px;}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:14px;font-size:12.5px;}
+  .kv .k{color:var(--dim);font-family:var(--mono);text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;align-self:center;}
+  .kv .v{font-family:var(--mono);}
+  .actions{display:flex;gap:8px;margin-top:18px;}
+  .btn{
+    flex:1;border:1px solid var(--line);background:var(--panel-2);color:var(--text);
+    padding:10px;border-radius:8px;font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{border-color:var(--cyan);}
+  .btn.primary{background:linear-gradient(135deg,var(--cyan),#2c8fd1);color:#03070a;border:none;}
+  .btn.danger{background:linear-gradient(135deg,#ff7a7e,var(--red));color:#1a0203;border:none;}
+  .btn:disabled{opacity:.35;cursor:not-allowed;}
+  .worknotes{margin-top:16px;}
+  .worknotes textarea{
+    width:100%;background:#05080b;border:1px solid var(--line);border-radius:8px;color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:10px;resize:vertical;min-height:60px;
+  }
+  .event-log{margin-top:16px;}
+  .event-log .ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:12px;}
+  .event-log .ev .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);margin-top:5px;flex:none;}
+  .event-log .ev.recover .dot{background:var(--green);}
+  .event-log .ev .tm{font-family:var(--mono);color:var(--dim);font-size:10.5px;width:64px;flex:none;}
+  .notif-row{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;}
+  .notif-chip{font-family:var(--mono);font-size:10.5px;padding:4px 9px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;gap:5px;}
+  .notif-chip.sent{color:var(--green);border-color:rgba(61,220,151,.3);}
+
+  .toast-wrap{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:100;}
+  .toast{
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--cyan);
+    padding:10px 14px;border-radius:8px;font-size:12px;font-family:var(--mono);min-width:240px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4);animation:slidein .25s ease;
+  }
+  @keyframes slidein{from{transform:translateX(20px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+  @media(max-width:1100px){
+    .layout{grid-template-columns:1fr;}
+    .col{border-right:none;border-bottom:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">KV</div>
+    <div class="title">Kerala Vision Broadband &nbsp;/&nbsp; <b>Auto Ticketing Engine</b></div>
+  </div>
+  <div class="clock"><span>SOURCE <b>ZABBIX</b></span><span>API <b>POST /api/alarms</b></span><span id="clk">00:00:00</span></div>
+</div>
+
+<div class="stat-strip">
+  <div class="stat open"><div class="num" id="statOpen">0</div><div class="lbl">Open Tickets</div></div>
+  <div class="stat crit"><div class="num" id="statCrit">0</div><div class="lbl">High / Critical</div></div>
+  <div class="stat dup"><div class="num" id="statDup">0</div><div class="lbl">Duplicates Suppressed</div></div>
+  <div class="stat resolved"><div class="num" id="statRes">0</div><div class="lbl">Auto-Resolved</div></div>
+  <div class="stat"><div class="num" id="statMttr">—</div><div class="lbl">Avg Hold Time (s)</div></div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: Source simulator -->
+  <div class="col">
+    <h2 class="sec">Zabbix Server · Devices</h2>
+    <div id="devices"></div>
+
+    <h2 class="sec" style="margin-top:20px;">Trigger Alarm</h2>
+    <div class="alarm-btns" id="alarmBtns"></div>
+
+    <div class="auto-toggle">
+      <div style="font-size:12px;">Simulate live traffic</div>
+      <div class="switch" id="autoSwitch" onclick="toggleAuto()"><div class="knob"></div></div>
+    </div>
+
+    <h2 class="sec" style="margin-top:20px;">Webhook Stream</h2>
+    <div class="log" id="webhookLog"></div>
+  </div>
+
+  <!-- MIDDLE: Pipeline + ticket feed -->
+  <div class="col">
+    <h2 class="sec">Auto Ticketing Engine · Live Pipeline</h2>
+    <div class="pipeline" id="pipeline"></div>
+
+    <h2 class="sec">Ticket Queue</h2>
+    <div class="ticket-feed" id="ticketFeed"><div class="empty">No tickets yet — trigger an alarm on the left to begin.</div></div>
+  </div>
+
+  <!-- RIGHT: Ticket detail -->
+  <div class="col">
+    <h2 class="sec">Ticket Detail</h2>
+    <div id="detailPane"><div class="empty">Select a ticket to view full incident detail, work notes, and notification status.</div></div>
+  </div>
+
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+/* ============== DATA MODEL ============== */
+const DEVICES = [
+  {name:"BNG-KOCHI-01", ip:"10.10.20.130", region:"Ernakulam"},
+  {name:"OLT-TVM-CORE-02", ip:"10.10.40.12", region:"Thiruvananthapuram"},
+  {name:"AGG-KOZHIKODE-01", ip:"10.10.55.4", region:"Kozhikode"},
+  {name:"BGP-EDGE-KOTTAYAM", ip:"10.10.61.9", region:"Kottayam"},
+];
+
+const ALARM_TYPES = [
+  {alarm_name:"Interface Down", alarm_type:"LINK_DOWN", severity:"High"},
+  {alarm_name:"Host Unreachable", alarm_type:"DEVICE_DOWN", severity:"Critical"},
+  {alarm_name:"CPU Critical (>92%)", alarm_type:"CPU_HIGH", severity:"Medium"},
+  {alarm_name:"BGP Peer Down", alarm_type:"BGP_DOWN", severity:"High"},
+];
+
+const STAGES = [
+  {t:"Receive Alarm", d:"HTTP POST /api/alarms — payload accepted"},
+  {t:"Validate JSON", d:"Schema check: host, ip, alarm_type, severity, event_time"},
+  {t:"Normalize Data", d:"Map to Common Alarm Format (CAF)"},
+  {t:"Duplicate Check", d:"Query open tickets for Device + Alarm Type", branch:true},
+  {t:"Assignment Engine", d:"Device group · Severity · Region · Shift schedule"},
+  {t:"Notification", d:"Email · SMS · WhatsApp · Teams/Slack"},
+];
+
+let tickets = [];
+let ticketSeq = 1000;
+let selectedId = null;
+let autoMode = false;
+let autoTimer = null;
+let stats = {dup:0, resolved:0, holdTimes:[]};
+
+/* ============== INIT UI ============== */
+function fmtTime(d){ return d.toTimeString().slice(0,8); }
+setInterval(()=>{ document.getElementById('clk').textContent = fmtTime(new Date()); }, 1000);
+
+function renderDevices(){
+  const el = document.getElementById('devices');
+  el.innerHTML = DEVICES.map(d=>`
+    <div class="device-card">
+      <div class="row">
+        <div><div class="name">${d.name}</div><div class="ip">${d.ip} · ${d.region}</div></div>
+        <div class="pulse-dot"></div>
+      </div>
+    </div>`).join('');
+}
+
+function renderAlarmButtons(){
+  const el = document.getElementById('alarmBtns');
+  el.innerHTML = ALARM_TYPES.map((a,i)=>`
+    <button class="alarm-btn" onclick="manualTrigger(${i})">
+      <span>${a.alarm_name}</span>
+      <span class="sev sev-${a.severity}">${a.severity}</span>
+    </button>`).join('');
+}
+
+function manualTrigger(alarmIdx){
+  const device = DEVICES[Math.floor(Math.random()*DEVICES.length)];
+  const alarm = ALARM_TYPES[alarmIdx];
+  runAlarm(device, alarm);
+}
+
+function toggleAuto(){
+  autoMode = !autoMode;
+  document.getElementById('autoSwitch').classList.toggle('on', autoMode);
+  if(autoMode){
+    autoTimer = setInterval(()=>{
+      const device = DEVICES[Math.floor(Math.random()*DEVICES.length)];
+      const alarm = ALARM_TYPES[Math.floor(Math.random()*ALARM_TYPES.length)];
+      runAlarm(device, alarm);
+    }, 4200);
+    toast("Live simulation started — alarms every ~4s");
+  } else {
+    clearInterval(autoTimer);
+    toast("Live simulation paused");
+  }
+}
+
+function logLine(html){
+  const el = document.getElementById('webhookLog');
+  const row = document.createElement('div');
+  row.className='l';
+  row.innerHTML = `<b>${fmtTime(new Date())}</b> ${html}`;
+  el.prepend(row);
+  while(el.children.length>40) el.removeChild(el.lastChild);
+}
+
+function toast(msg){
+  const wrap = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className='toast';
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='.3s'; setTimeout(()=>t.remove(),300); }, 3200);
+}
+
+/* ============== PIPELINE RENDER ============== */
+function renderPipeline(activeIdx, branchResult){
+  const el = document.getElementById('pipeline');
+  el.innerHTML = STAGES.map((s,i)=>{
+    const cls = i<activeIdx ? 'done' : (i===activeIdx ? 'active' : '');
+    let branchTxt = '';
+    if(s.branch && i<=activeIdx && branchResult){
+      branchTxt = `<div class="branch">→ ${branchResult}</div>`;
+    }
+    return `<div class="stage ${cls}">
+      <div class="idx">${i<activeIdx?'✓':i+1}</div>
+      <div class="meta"><div class="t">${s.t}</div><div class="d">${s.d}</div></div>
+      ${branchTxt}
+    </div>` + (i<STAGES.length-1?'<div class="connector"></div>':'');
+  }).join('');
+}
+
+/* ============== CORE ALARM FLOW ============== */
+async function runAlarm(device, alarmDef){
+  const eventId = Math.floor(10000000+Math.random()*89999999);
+  const payload = {
+    host: device.name, ip: device.ip,
+    alarm_name: alarmDef.alarm_name, alarm_type: alarmDef.alarm_type,
+    severity: alarmDef.severity, event_id: eventId,
+    event_time: new Date().toISOString(), status:"PROBLEM"
+  };
+  logLine(`Trigger=<b>PROBLEM</b> ${device.name} :: ${alarmDef.alarm_name}`);
+
+  // animate through stages 0..2
+  for(let i=0;i<3;i++){ renderPipeline(i); await sleep(260); }
+
+  // duplicate check
+  renderPipeline(3);
+  await sleep(380);
+  const existing = tickets.find(t => t.device===device.name && t.alarm_type===alarmDef.alarm_type && t.status!=='Resolved');
+
+  let ticket;
+  if(existing){
+    existing.count++;
+    existing.lastSeen = new Date();
+    existing.events.unshift({t:fmtTime(new Date()), text:`Duplicate event_id ${eventId} received — occurrence #${existing.count}`, recover:false});
+    stats.dup++;
+    renderPipeline(4, `DUPLICATE FOUND → Ticket ${existing.id} updated (count ${existing.count})`);
+    logLine(`Duplicate suppressed → <b>${existing.id}</b> (count ${existing.count})`);
+    ticket = existing;
+    await sleep(420);
+  } else {
+    ticket = {
+      id: 'INC-' + (ticketSeq++),
+      device: device.name, ip: device.ip, region: device.region,
+      alarm_name: alarmDef.alarm_name, alarm_type: alarmDef.alarm_type,
+      severity: alarmDef.severity, status:'Open',
+      firstSeen: new Date(), lastSeen: new Date(), count:1,
+      eventId, assignedTo:null, notify:{email:false,sms:false,whatsapp:false},
+      notes:'', events:[{t:fmtTime(new Date()), text:`Ticket created from event_id ${eventId} (Status=Open)`, recover:false}]
+    };
+    tickets.unshift(ticket);
+    renderPipeline(4, `NO OPEN TICKET → New ticket ${ticket.id} created`);
+    logLine(`New ticket created → <b>${ticket.id}</b> (${alarmDef.severity})`);
+    await sleep(420);
+  }
+
+  // assignment
+  renderPipeline(5);
+  if(!ticket.assignedTo){
+    const engineers = ['N. Pillai (L1)','A. Joseph (L1)','S. Kumar (L2)'];
+    ticket.assignedTo = engineers[Math.floor(Math.random()*engineers.length)];
+    ticket.status = 'Assigned';
+    ticket.events.unshift({t:fmtTime(new Date()), text:`Auto-assigned to ${ticket.assignedTo} (device group + severity + shift rule)`});
+  }
+  await sleep(380);
+
+  // notification
+  ticket.notify = {email:true, sms: ticket.severity!=='Medium', whatsapp: ticket.severity==='Critical'};
+  ticket.events.unshift({t:fmtTime(new Date()), text:`Notification dispatched: ${Object.entries(ticket.notify).filter(([k,v])=>v).map(([k])=>k).join(', ')}`});
+  renderPipeline(6);
+  logLine(`Notify → ${Object.entries(ticket.notify).filter(([k,v])=>v).map(([k])=>k.toUpperCase()).join(', ')} :: ${ticket.id}`);
+
+  renderTicketFeed();
+  renderStats();
+  if(selectedId===ticket.id) renderDetail(ticket.id);
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* ============== TICKET FEED ============== */
+function renderTicketFeed(){
+  const el = document.getElementById('ticketFeed');
+  if(tickets.length===0){ el.innerHTML = '<div class="empty">No tickets yet — trigger an alarm on the left to begin.</div>'; return; }
+  el.innerHTML = tickets.map(t=>`
+    <div class="ticket ${t.id===selectedId?'selected':''}" onclick="selectTicket('${t.id}')">
+      <div class="top">
+        <div class="id">${t.id} · #${t.eventId}</div>
+        <span class="badge b-${t.status.replace(' ','')}">${t.status}</span>
+      </div>
+      <div class="name">${t.alarm_name}</div>
+      <div class="sub">${t.device} · ${t.ip}</div>
+      <div class="foot">
+        <span class="count-chip">x${t.count} occurrences</span>
+        <span class="sev sev-${t.severity}">${t.severity}</span>
+      </div>
+    </div>`).join('');
+}
+
+function selectTicket(id){ selectedId = id; renderTicketFeed(); renderDetail(id); }
+
+/* ============== DETAIL PANE ============== */
+function renderDetail(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  const holdSec = t.status==='Resolved' ? t.holdSeconds : null;
+  document.getElementById('detailPane').innerHTML = `
+    <div class="detail-card">
+      <div class="id">${t.id}</div>
+      <h3>${t.alarm_name}</h3>
+      <span class="badge b-${t.status.replace(' ','')}">${t.status}</span>
+      <span class="sev sev-${t.severity}" style="margin-left:6px;">${t.severity}</span>
+
+      <div class="kv">
+        <div class="k">Device</div><div class="v">${t.device}</div>
+        <div class="k">IP</div><div class="v">${t.ip}</div>
+        <div class="k">Region</div><div class="v">${t.region}</div>
+        <div class="k">Alarm Type</div><div class="v">${t.alarm_type}</div>
+        <div class="k">First Occ.</div><div class="v">${fmtTime(t.firstSeen)}</div>
+        <div class="k">Last Occ.</div><div class="v">${fmtTime(t.lastSeen)}</div>
+        <div class="k">Occurrences</div><div class="v">${t.count}</div>
+        <div class="k">Assigned To</div><div class="v">${t.assignedTo||'—'}</div>
+        ${holdSec!==null?`<div class="k">Resolution Hold</div><div class="v">${holdSec}s</div>`:''}
+      </div>
+
+      <div class="notif-row">
+        <div class="notif-chip ${t.notify.email?'sent':''}">✉ Email</div>
+        <div class="notif-chip ${t.notify.sms?'sent':''}">✆ SMS</div>
+        <div class="notif-chip ${t.notify.whatsapp?'sent':''}">⌁ WhatsApp</div>
+      </div>
+
+      <div class="worknotes">
+        <div class="k" style="margin-bottom:6px;">Work Notes</div>
+        <textarea placeholder="Add investigation notes…" onchange="addNote('${t.id}', this.value)">${t.notes}</textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="ackTicket('${t.id}')" ${t.status!=='Assigned'?'disabled':''}>Start Investigation</button>
+        <button class="btn primary" onclick="recoverTicket('${t.id}')" ${t.status==='Resolved'?'disabled':''}>Send Recovery Event</button>
+      </div>
+
+      <div class="event-log">
+        <div class="k" style="margin-bottom:4px;">Event Log</div>
+        ${t.events.map(e=>`<div class="ev ${e.recover?'recover':''}"><div class="dot"></div><div class="tm">${e.t}</div><div>${e.text}</div></div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function addNote(id, val){
+  const t = tickets.find(x=>x.id===id); if(!t) return;
+  t.notes = val;
+}
+
+function ackTicket(id){
+  const t = tickets.find(x=>x.id===id); if(!t) return;
+  t.status = 'In Progress';
+  t.events.unshift({t:fmtTime(new Date()), text:`${t.assignedTo} acknowledged ticket — investigation started`});
+  renderTicketFeed(); renderDetail(id); renderStats();
+  toast(`${id} → In Progress`);
+}
+
+function recoverTicket(id){
+  const t = tickets.find(x=>x.id===id); if(!t) return;
+  const hold = Math.floor(8+Math.random()*20);
+  t.events.unshift({t:fmtTime(new Date()), text:`RECOVERY webhook received — resolution_time logged, hold ${hold}s before auto-close`, recover:true});
+  logLine(`RECOVERY → ${id} resolved (hold ${hold}s)`);
+  t.status = 'Resolved';
+  t.holdSeconds = hold;
+  stats.resolved++;
+  stats.holdTimes.push(hold);
+  t.notify = {email:true, sms:true, whatsapp:t.severity==='Critical'};
+  t.events.unshift({t:fmtTime(new Date()), text:`Resolution notification dispatched to stakeholders`});
+  renderTicketFeed(); renderDetail(id); renderStats();
+  toast(`${id} auto-resolved`);
+}
+
+/* ============== STATS ============== */
+function renderStats(){
+  const open = tickets.filter(t=>t.status!=='Resolved').length;
+  const crit = tickets.filter(t=>t.status!=='Resolved' && (t.severity==='High'||t.severity==='Critical')).length;
+  document.getElementById('statOpen').textContent = open;
+  document.getElementById('statCrit').textContent = crit;
+  document.getElementById('statDup').textContent = stats.dup;
+  document.getElementById('statRes').textContent = stats.resolved;
+  document.getElementById('statMttr').textContent = stats.holdTimes.length
+    ? Math.round(stats.holdTimes.reduce((a,b)=>a+b,0)/stats.holdTimes.length) : '—';
+}
+
+/* ============== BOOT ============== */
+renderDevices();
+renderAlarmButtons();
+renderPipeline(-1);
+renderStats();
+logLine('Engine online — listening on <b>POST /api/alarms</b>');
+</script>
+</body>
+</html>
